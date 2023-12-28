@@ -26,7 +26,7 @@ func NewDefaultNatsServiceWithTrace(lc fx.Lifecycle, tracer opentracing.Tracer, 
 		}, nil
 	}
 
-	return NewDefaultNatsServiceWithJWTAuth(lc, config, logger)
+	return NewNatsServiceWithJWTAuth(lc, config, logger)
 }
 
 type natsServiceWithTrace struct {

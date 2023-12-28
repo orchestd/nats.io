@@ -19,22 +19,22 @@ var connect = func(natsUrl string, options ...nats.Option) (NatsConnection, erro
 	return nats.Connect(natsUrl, options...)
 }
 
-func NewDefaultNatsService(lc fx.Lifecycle, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
+func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
 		natsUser := credentials.GetCredentials().NatsUser
 		if natsUser == "" {
-			panic("NotificationService could not get credentials by key NatsUser")
+			panic("could not get credentials by key NatsUser")
 		}
 		natsPw := credentials.GetCredentials().NatsPw
 		if natsPw == "" {
-			panic("NotificationService could not get credentials by key NatsPw")
+			panic("could not get credentials by key NatsPw")
 		}
 		authOpt := nats.UserInfo(natsUser, natsPw)
 		return authOpt
 	})
 }
 
-func NewDefaultNatsServiceWithJWTAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger) NatsService {
+func NewNatsServiceWithJWTAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger) NatsService {
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
 		authOpt := nats.UserCredentials(serviceName + ".creds")
 		return authOpt
@@ -62,10 +62,23 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 	if err != nil {
 		reconnectionAttempts = -1
 	}
+	reconnectWaitSec, err := config.Get("reconnectWaitSec").Int()
+	if err != nil {
+		reconnectWaitSec = 30
+	}
+	maxPingsOutstanding, err := config.Get("maxPingsOutstanding").Int()
+	if err != nil {
+		maxPingsOutstanding = 2
+	}
+	pingIntervalSec, err := config.Get("pingIntervalSec").Int()
+	if err != nil {
+		pingIntervalSec = 2 * 60
+	}
 	authOpt := getAuthOpts(serviceName)
+	service.connectionUrl = natsUrl
 	lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
-			return service.Connect(natsUrl, serviceName, authOpt, connectionAttempts, reconnectionAttempts)
+			return service.Connect(natsUrl, serviceName, authOpt, connectionAttempts, reconnectionAttempts, reconnectWaitSec, maxPingsOutstanding, pingIntervalSec)
 		},
 		OnStop: func(c context.Context) error {
 			service.Close()
@@ -76,47 +89,70 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 }
 
 type defaultNatsService struct {
-	nc            NatsConnection
-	logger        log.Logger
-	subscriptions map[string]*nats.Subscription
+	nc                      NatsConnection
+	logger                  log.Logger
+	subscriptions           map[string]*nats.Subscription
+	connectionFailedHandler func(err error)
+	connectionUrl           string
 }
 
-func (n defaultNatsService) Connect(natsUrl, serviceName string, authOpt nats.Option, connectionAttempts, reconnectionAttempts int) error {
+func (n defaultNatsService) formatErrorMsg(msg string, err error) string {
+	errorMsg := ""
+	if err != nil {
+		errorMsg = "error: " + err.Error()
+	}
+	return msg + " server address: " + n.connectionUrl + errorMsg
+}
+
+func (n defaultNatsService) Connect(natsUrl, serviceName string, authOpt nats.Option,
+	connectionAttempts, reconnectionAttempts, reconnectWaitSec, maxPingsOutstanding, pingIntervalSec int) error {
 	opts := []nats.Option{nats.Name(serviceName)}
 	opts = append(opts, authOpt)
-	opts = append(opts, nats.ReconnectWait(2*time.Second))
+
+	opts = append(opts, nats.ReconnectWait(time.Duration(reconnectWaitSec)*time.Second))
+
 	opts = append(opts, nats.MaxReconnects(reconnectionAttempts))
-	opts = append(opts, nats.MaxPingsOutstanding(2))
-	opts = append(opts, nats.PingInterval(2*time.Second))
+
+	opts = append(opts, nats.MaxPingsOutstanding(maxPingsOutstanding))
+
+	opts = append(opts, nats.PingInterval(time.Duration(pingIntervalSec)*time.Second))
 
 	opts = append(opts, nats.ErrorHandler(func(_ *nats.Conn, s *nats.Subscription, err error) {
-		n.logger.Error(context.Background(), "nats.ErrorHandler fired, Subscription: %v, err: %v", s, err)
+
+		n.logger.Error(context.Background(), n.formatErrorMsg("nats.ErrorHandler fired", err))
 	}))
 
 	opts = append(opts, nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-		n.logger.Error(context.Background(), "nats.DisconnectErrHandler fired, err: %v", err)
+		n.logger.Error(context.Background(), n.formatErrorMsg("nats.DisconnectErrHandler fired", err))
 	}))
 
 	opts = append(opts, nats.ReconnectHandler(func(nc *nats.Conn) {
-		n.logger.Warn(context.Background(), fmt.Sprintf("nats.ReconnectHandler [%s]", nc.ConnectedUrl()))
+		n.logger.Warn(context.Background(), n.formatErrorMsg("nats.ReconnectHandler fired", nil))
 	}))
 
 	err := n.connect(natsUrl, opts)
 	if err != nil {
-		n.logger.Error(context.Background(), "can't connect to nats server %s err: %v", natsUrl, err)
+		n.logger.Error(context.Background(), n.formatErrorMsg("can't connect to nats server", err))
 		if connectionAttempts < 2 {
 			return err
 		}
 		go func() {
+			var connectionError error
 			for i := 1; i <= connectionAttempts; i++ {
-				time.Sleep(time.Minute)
-				err := n.connect(natsUrl, opts)
-				if err == nil {
+				time.Sleep(time.Duration(reconnectWaitSec) * time.Second)
+				connectionError = n.connect(natsUrl, opts)
+				if connectionError == nil {
 					break
 				}
-				n.logger.Error(context.Background(), "can't connect to nats server %s err: %v. attempt - %v", natsUrl, err, i)
+				n.logger.Error(context.Background(), n.formatErrorMsg("can't connect to nats server attempt - "+fmt.Sprint(i), connectionError))
 			}
-			n.logger.Error(context.Background(), "can't connect to nats server %s after %v attempts. Stop trying", natsUrl, connectionAttempts)
+
+			connectionError = fmt.Errorf(n.formatErrorMsg(fmt.Sprintf("can't connect to nats server after %v attempts. Stop trying.", connectionAttempts), connectionError))
+
+			if n.connectionFailedHandler != nil {
+				n.connectionFailedHandler(connectionError)
+			}
+			n.logger.Error(context.Background(), connectionError.Error())
 		}()
 		return nil
 	}
@@ -138,6 +174,10 @@ func (n defaultNatsService) Close() {
 	}
 }
 
+func (n defaultNatsService) SetConnectionFailedHandler(handler func(err error)) {
+	n.connectionFailedHandler = handler
+}
+
 func (n defaultNatsService) checkIsReady() error {
 	if n.nc == nil {
 		return fmt.Errorf("nats server is not ready")
@@ -152,7 +192,7 @@ func (n defaultNatsService) PublishExternal(subj string, msg []byte) error {
 	}
 	err = n.nc.Publish(subj, msg)
 	if err != nil {
-		return fmt.Errorf("can't publish message subject: %v. error: %v", subj, err)
+		return fmt.Errorf(n.formatErrorMsg("can't publish message subject: "+subj, err))
 	}
 	return nil
 }
@@ -160,7 +200,7 @@ func (n defaultNatsService) PublishExternal(subj string, msg []byte) error {
 func (n defaultNatsService) Publish(subj string, data interface{}) error {
 	b, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("PublishJSON data can't be convert into JSON. %s", err)
+		return fmt.Errorf(n.formatErrorMsg("can't publish message subject: "+subj+" data can't be convert into JSON.", err))
 	}
 	return n.PublishExternal(subj, b)
 }
@@ -172,7 +212,7 @@ func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout tim
 	}
 	resp, err := n.nc.Request(subj, msg, timeout)
 	if err != nil {
-		return nil, fmt.Errorf("can't Request message subject: %v. error: %v", subj, err)
+		return nil, fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj, err))
 	}
 	return resp.Data, nil
 }
@@ -180,7 +220,8 @@ func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout tim
 func (n defaultNatsService) Request(subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
 	b, err := json.Marshal(data)
 	if err != nil {
-		return NewInternalServiceError(fmt.Errorf("RequestJSON data can't be convert into JSON. %s", err))
+
+		return NewInternalServiceError(fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj+" data can't be convert into JSON.", err)))
 	}
 	rb, err := n.RequestExternal(subj, b, timeout)
 	if err != nil {
@@ -188,17 +229,26 @@ func (n defaultNatsService) Request(subj string, data interface{}, timeout time.
 	}
 	err = handleInternalResponse(rb, target)
 	if err != nil {
-		return NewInternalServiceError(fmt.Errorf("can't handle Internal Response: " + err.Error()))
+		err := fmt.Errorf("can't handle internal response: " + err.Error())
+		n.logger.Error(context.Background(), "error: "+err.Error()+" response:"+string(rb))
+		return NewInternalServiceError(err)
 	}
 	return nil
 }
 
-func (n defaultNatsService) QueueSubscribe(subj, queue string, handler NatsHandler) error {
+func (n defaultNatsService) checkSubscribe(subj, queue string) error {
 	if n.nc == nil {
 		return fmt.Errorf("can't subscribe. no connection to nats server")
 	}
 	if n.checkSubscriptionExist(subj, queue) {
 		return fmt.Errorf("subscription for subj:%v and queue:%v already exists", subj, queue)
+	}
+	return nil
+}
+
+func (n defaultNatsService) QueueSubscribe(subj, queue string, handler NatsHandler) error {
+	if err := n.checkSubscribe(subj, queue); err != nil {
+		return err
 	}
 	subscription, err := n.nc.QueueSubscribe(subj, queue, func(msg *nats.Msg) {
 		newHandler := createNewInnerHandler(handler)
@@ -224,26 +274,24 @@ func (n defaultNatsService) QueueSubscribe(subj, queue string, handler NatsHandl
 		n.respond(subj, queue, msg, b)
 	})
 	if err != nil {
-		return fmt.Errorf("can't queue subscribe subj: %v, queue: %v. error: %v", subj, queue, err)
+		return fmt.Errorf(n.formatErrorMsg("can't queue subscribe subj: "+subj+", queue:"+queue+" %v.", err))
 	}
 	n.addSubscription(subj, queue, subscription)
 	return nil
 }
 
 func (n *defaultNatsService) QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData) error {
-	if n.nc == nil {
-		return fmt.Errorf("can't subscribe. no connection to nats server")
-	}
-	if n.checkSubscriptionExist(subj, queue) {
-		return fmt.Errorf("subscription for subj:%v and queue:%v already exists", subj, queue)
+	if err := n.checkSubscribe(subj, queue); err != nil {
+		return err
 	}
 	subscription, err := n.nc.QueueSubscribe(subj, queue, func(msg *nats.Msg) {
 		resp := handler.Exec(msg.Data)
 		err := msg.Respond(resp)
-		n.logger.Error(context.Background(), "can't send response on queue subscribe subj: %v, queue: %v. error: %v", subj, queue, err)
+
+		n.logger.Error(context.Background(), n.formatErrorMsg(fmt.Sprintf("can't send response on queue subscribe subj: %v, queue: %v.", subj, queue), err))
 	})
 	if err != nil {
-		return fmt.Errorf("can't queue subscribe subj: %v, queue: %v. error: %v", subj, queue, err)
+		return fmt.Errorf(n.formatErrorMsg("can't queue subscribe subj: "+subj+", queue:"+queue+" %v.", err))
 	}
 	n.addSubscription(subj, queue, subscription)
 	return nil
@@ -260,7 +308,7 @@ func (n *defaultNatsService) SubscribeExternal(subj string, handler NatsHandlerP
 func (n defaultNatsService) respond(subj, queue string, msg *nats.Msg, b []byte) {
 	err := n.nc.Publish(msg.Reply, b)
 	if err != nil {
-		n.logger.Error(context.Background(), "can't send response on queue subscribe subj: %v, queue: %v. error: %v", subj, queue, err)
+		n.logger.Error(context.Background(), n.formatErrorMsg(fmt.Sprintf("can't send response on queue subscribe subj: %v, queue: %v.", subj, queue), err))
 	}
 }
 
