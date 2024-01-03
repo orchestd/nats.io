@@ -7,13 +7,14 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
+	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
 	. "github.com/orchestd/servicereply"
 	"go.uber.org/fx"
 	"time"
 )
 
-func NewDefaultNatsServiceWithTrace(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger) NatsService {
+func NewDefaultNatsServiceWithTrace(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
 	connect = func(natsUrl string, options ...nats.Option) (NatsConnection, error) {
 		con, err := nats.Connect(natsUrl, options...)
 		if err != nil {
@@ -26,7 +27,7 @@ func NewDefaultNatsServiceWithTrace(lc fx.Lifecycle, tracer opentracing.Tracer, 
 		}, nil
 	}
 
-	return NewNatsServiceWithJWTAuth(lc, config, logger)
+	return NewNatsServiceWithJWTAuth(lc, config, credentials, logger)
 }
 
 type natsServiceWithTrace struct {
