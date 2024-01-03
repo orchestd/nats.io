@@ -16,6 +16,8 @@ type NatsService interface {
 	Subscribe(subj string, handler NatsHandler) error
 	SubscribeExternal(subj string, handler NatsHandlerPlainData) error
 	SetConnectionFailedHandler(func(err error))
+	Connect(natsUrl, serviceName string, authOpt nats.Option,
+		connectionAttempts, reconnectionAttempts, reconnectWaitSec, maxPingsOutstanding, pingIntervalSec int) error
 }
 
 type NatsConnection interface {

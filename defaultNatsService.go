@@ -19,6 +19,13 @@ var connect = func(natsUrl string, options ...nats.Option) (NatsConnection, erro
 	return nats.Connect(natsUrl, options...)
 }
 
+func NewNatsServiceWithoutConnection(logger log.Logger) NatsService {
+	return &defaultNatsService{
+		logger:        logger,
+		subscriptions: map[string]*nats.Subscription{},
+	}
+}
+
 func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
 		natsUser := credentials.GetCredentials().NatsUser
@@ -34,9 +41,17 @@ func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, l
 	})
 }
 
-func NewNatsServiceWithJWTAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger) NatsService {
+func NewNatsServiceWithJWTAuth(lc fx.Lifecycle, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
+	natsJWT := credentials.GetCredentials().NatsJWT
+	if natsJWT == "" {
+		panic("could not get credentials by key NatsJWT")
+	}
+	natsSeed := credentials.GetCredentials().NatsSeed
+	if natsSeed == "" {
+		panic("could not get credentials by key NatsSeed")
+	}
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
-		authOpt := nats.UserCredentials(serviceName + ".creds")
+		authOpt := nats.UserJWTAndSeed(natsJWT, natsSeed)
 		return authOpt
 	})
 }
@@ -48,7 +63,7 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 	}
 	serviceName, err := config.GetServiceName()
 	if err != nil {
-		panic("can't get serviceName: " + err.Error())
+		panic("could not get serviceName: " + err.Error())
 	}
 	natsUrl, err := config.Get("NatsUrl").String()
 	if err != nil {
@@ -169,7 +184,7 @@ func (n *defaultNatsService) connect(natsUrl string, opts []nats.Option) error {
 }
 
 func (n defaultNatsService) Close() {
-	if n.checkIsReady() == nil {
+	if n.wasInitialize() == nil {
 		n.nc.Close()
 	}
 }
@@ -178,7 +193,7 @@ func (n defaultNatsService) SetConnectionFailedHandler(handler func(err error)) 
 	n.connectionFailedHandler = handler
 }
 
-func (n defaultNatsService) checkIsReady() error {
+func (n defaultNatsService) wasInitialize() error {
 	if n.nc == nil {
 		return fmt.Errorf("nats server is not ready")
 	}
@@ -186,7 +201,7 @@ func (n defaultNatsService) checkIsReady() error {
 }
 
 func (n defaultNatsService) PublishExternal(subj string, msg []byte) error {
-	err := n.checkIsReady()
+	err := n.wasInitialize()
 	if err != nil {
 		return err
 	}
@@ -206,7 +221,7 @@ func (n defaultNatsService) Publish(subj string, data interface{}) error {
 }
 
 func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout time.Duration) ([]byte, error) {
-	err := n.checkIsReady()
+	err := n.wasInitialize()
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +240,7 @@ func (n defaultNatsService) Request(subj string, data interface{}, timeout time.
 	}
 	rb, err := n.RequestExternal(subj, b, timeout)
 	if err != nil {
-		return NewInternalServiceError(err)
+		return NewInternalServiceError(fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj, err)))
 	}
 	err = handleInternalResponse(rb, target)
 	if err != nil {
