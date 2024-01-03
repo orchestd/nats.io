@@ -19,6 +19,13 @@ var connect = func(natsUrl string, options ...nats.Option) (NatsConnection, erro
 	return nats.Connect(natsUrl, options...)
 }
 
+/*
+This allows a 2 phase intialization:
+Usage:
+natsSvc := NewNatsServiceWithoutConnection(logger)
+...
+err:=natsSvc.Connect
+*/
 func NewNatsServiceWithoutConnection(logger log.Logger) NatsService {
 	return &defaultNatsService{
 		logger:        logger,
@@ -30,11 +37,11 @@ func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, l
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
 		natsUser := credentials.GetCredentials().NatsUser
 		if natsUser == "" {
-			panic("could not get credentials by key NatsUser")
+			panic("can't get credentials by key NatsUser")
 		}
 		natsPw := credentials.GetCredentials().NatsPw
 		if natsPw == "" {
-			panic("could not get credentials by key NatsPw")
+			panic("can't get credentials by key NatsPw")
 		}
 		authOpt := nats.UserInfo(natsUser, natsPw)
 		return authOpt
@@ -44,11 +51,11 @@ func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, l
 func NewNatsServiceWithJWTAuth(lc fx.Lifecycle, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
 	natsJWT := credentials.GetCredentials().NatsJWT
 	if natsJWT == "" {
-		panic("could not get credentials by key NatsJWT")
+		panic("can't get credentials by key NatsJWT")
 	}
 	natsSeed := credentials.GetCredentials().NatsSeed
 	if natsSeed == "" {
-		panic("could not get credentials by key NatsSeed")
+		panic("can't get credentials by key NatsSeed")
 	}
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
 		authOpt := nats.UserJWTAndSeed(natsJWT, natsSeed)
@@ -63,11 +70,11 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 	}
 	serviceName, err := config.GetServiceName()
 	if err != nil {
-		panic("could not get serviceName: " + err.Error())
+		panic("can't get serviceName: " + err.Error())
 	}
 	natsUrl, err := config.Get("NatsUrl").String()
 	if err != nil {
-		panic("could not get conf by key NatsUrl " + err.Error())
+		panic("can't get conf by key NatsUrl " + err.Error())
 	}
 	connectionAttempts, err := config.Get("connectionAttempts").Int()
 	if err != nil {
@@ -184,7 +191,7 @@ func (n *defaultNatsService) connect(natsUrl string, opts []nats.Option) error {
 }
 
 func (n defaultNatsService) Close() {
-	if n.wasInitialize() == nil {
+	if n.wasInitialized() == nil {
 		n.nc.Close()
 	}
 }
@@ -193,7 +200,7 @@ func (n defaultNatsService) SetConnectionFailedHandler(handler func(err error)) 
 	n.connectionFailedHandler = handler
 }
 
-func (n defaultNatsService) wasInitialize() error {
+func (n defaultNatsService) wasInitialized() error {
 	if n.nc == nil {
 		return fmt.Errorf("nats server is not ready")
 	}
@@ -201,7 +208,7 @@ func (n defaultNatsService) wasInitialize() error {
 }
 
 func (n defaultNatsService) PublishExternal(subj string, msg []byte) error {
-	err := n.wasInitialize()
+	err := n.wasInitialized()
 	if err != nil {
 		return err
 	}
@@ -221,7 +228,7 @@ func (n defaultNatsService) Publish(subj string, data interface{}) error {
 }
 
 func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout time.Duration) ([]byte, error) {
-	err := n.wasInitialize()
+	err := n.wasInitialized()
 	if err != nil {
 		return nil, err
 	}
