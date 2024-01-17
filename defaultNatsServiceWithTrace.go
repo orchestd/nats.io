@@ -9,7 +9,6 @@ import (
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
-	. "github.com/orchestd/servicereply"
 	"go.uber.org/fx"
 	"time"
 )
