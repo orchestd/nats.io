@@ -29,6 +29,22 @@ func NewDefaultNatsServiceWithTrace(lc fx.Lifecycle, tracer opentracing.Tracer, 
 	return NewNatsServiceWithJWTAuth(lc, config, credentials, logger)
 }
 
+func NewNatsServiceWithTraceBasicAuth(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
+	connect = func(natsUrl string, options ...nats.Option) (NatsConnection, error) {
+		con, err := nats.Connect(natsUrl, options...)
+		if err != nil {
+			return nil, err
+		}
+		return natsServiceWithTrace{
+			tracer: tracer,
+			logger: logger,
+			nc:     con,
+		}, nil
+	}
+
+	return NewNatsServiceWithBasicAuth(lc, config, logger, credentials)
+}
+
 type natsServiceWithTrace struct {
 	tracer opentracing.Tracer
 	logger log.Logger
