@@ -126,7 +126,7 @@ func (n defaultNatsService) formatErrorMsg(msg string, err error) string {
 	return msg + " server address: " + n.connectionUrl + errorMsg
 }
 
-func (n defaultNatsService) Connect(natsUrl, serviceName string, authOpt nats.Option,
+func (n *defaultNatsService) Connect(natsUrl, serviceName string, authOpt nats.Option,
 	connectionAttempts, reconnectionAttempts, reconnectWaitSec, maxPingsOutstanding, pingIntervalSec int) error {
 	opts := []nats.Option{nats.Name(serviceName)}
 	opts = append(opts, authOpt)
@@ -249,11 +249,11 @@ func (n defaultNatsService) Request(subj string, data interface{}, timeout time.
 	if err != nil {
 		return NewInternalServiceError(fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj, err)))
 	}
-	err = handleInternalResponse(rb, target)
-	if err != nil {
-		err := fmt.Errorf("can't handle internal response: " + err.Error())
+	sErr := handleInternalResponse(rb, target)
+	if sErr != nil {
+		err := fmt.Errorf("can't handle internal response: " + sErr.Error())
 		n.logger.Error(context.Background(), "error: "+err.Error()+" response:"+string(rb))
-		return NewInternalServiceError(err)
+		return sErr
 	}
 	return nil
 }
