@@ -242,7 +242,6 @@ func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout tim
 func (n defaultNatsService) Request(subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
 	b, err := json.Marshal(data)
 	if err != nil {
-
 		return NewInternalServiceError(fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj+" data can't be convert into JSON.", err)))
 	}
 	rb, err := n.RequestExternal(subj, b, timeout)
@@ -251,7 +250,7 @@ func (n defaultNatsService) Request(subj string, data interface{}, timeout time.
 	}
 	sErr := handleInternalResponse(rb, target)
 	if sErr != nil {
-		err := fmt.Errorf("can't handle internal response: " + sErr.Error())
+		err := fmt.Errorf("can't handle internal response from subj: %s err: %s", subj, sErr.Error())
 		n.logger.Error(context.Background(), "error: "+err.Error()+" response:"+string(rb))
 		return sErr
 	}
@@ -372,7 +371,7 @@ func handleInternalResponse(body []byte, target interface{}) (srvReply ServiceRe
 			body = dataJson
 		}
 	} else {
-		body = nil
+		return nil
 	}
 	if err := json.Unmarshal(body, &target); err != nil {
 		return NewInternalServiceError(fmt.Errorf("can't unmarshal response data. " + err.Error()))
