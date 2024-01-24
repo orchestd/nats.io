@@ -18,6 +18,7 @@ type NatsService interface {
 	SetConnectionFailedHandler(func(err error))
 	Connect(natsUrl, serviceName string, authOpt nats.Option,
 		connectionAttempts, reconnectionAttempts, reconnectWaitSec, maxPingsOutstanding, pingIntervalSec int) error
+	IsNoResponderErr(err error) bool
 }
 
 type NatsConnection interface {
