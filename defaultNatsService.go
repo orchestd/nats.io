@@ -3,6 +3,7 @@ package natsio
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
@@ -234,9 +235,16 @@ func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout tim
 	}
 	resp, err := n.nc.Request(subj, msg, timeout)
 	if err != nil {
+		if errors.Is(err, nats.ErrNoResponders) {
+			return nil, err
+		}
 		return nil, fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj, err))
 	}
 	return resp.Data, nil
+}
+
+func (n defaultNatsService) IsNoResponderErr(err error) bool {
+	return errors.Is(err, nats.ErrNoResponders)
 }
 
 func (n defaultNatsService) Request(subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
@@ -246,6 +254,9 @@ func (n defaultNatsService) Request(subj string, data interface{}, timeout time.
 	}
 	rb, err := n.RequestExternal(subj, b, timeout)
 	if err != nil {
+		if errors.Is(err, nats.ErrNoResponders) {
+			return NewInternalServiceError(err)
+		}
 		return NewInternalServiceError(fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj, err)))
 	}
 	sErr := handleInternalResponse(rb, target)
