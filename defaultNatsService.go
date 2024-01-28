@@ -336,13 +336,13 @@ func (n *defaultNatsService) QueueUnsubscribe(subj, queue string) error {
 func (n *defaultNatsService) Unsubscribe(subj string) error {
 	subscription, ok := n.subscriptions[subj]
 	if !ok {
-		return fmt.Errorf("subscription %s does not exist", subj)
+		return nil
 	}
+	delete(n.subscriptions, subj)
 	err := subscription.Unsubscribe()
 	if err != nil {
 		return err
 	}
-	delete(n.subscriptions, subj)
 	return nil
 }
 
