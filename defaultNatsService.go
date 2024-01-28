@@ -329,7 +329,24 @@ func (n *defaultNatsService) QueueSubscribeExternal(subj, queue string, handler 
 	return nil
 }
 
-func (n defaultNatsService) Subscribe(subj string, handler NatsHandler) error {
+func (n *defaultNatsService) QueueUnsubscribe(subj, queue string) error {
+	return n.Unsubscribe(n.getSubscriptionName(subj, queue))
+}
+
+func (n *defaultNatsService) Unsubscribe(subj string) error {
+	subscription, ok := n.subscriptions[subj]
+	if !ok {
+		return nil
+	}
+	delete(n.subscriptions, subj)
+	err := subscription.Unsubscribe()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *defaultNatsService) Subscribe(subj string, handler NatsHandler) error {
 	return n.QueueSubscribe(subj, "", handler)
 }
 
@@ -345,12 +362,16 @@ func (n defaultNatsService) respond(subj, queue string, msg *nats.Msg, b []byte)
 }
 
 func (n *defaultNatsService) checkSubscriptionExist(subj, queue string) bool {
-	_, ok := n.subscriptions[subj+queue]
+	_, ok := n.subscriptions[n.getSubscriptionName(subj, queue)]
 	return ok
 }
 
+func (n *defaultNatsService) getSubscriptionName(subj, queue string) string {
+	return subj + queue
+}
+
 func (n *defaultNatsService) addSubscription(subj, queue string, subscription *nats.Subscription) {
-	n.subscriptions[subj+queue] = subscription
+	n.subscriptions[n.getSubscriptionName(subj, queue)] = subscription
 }
 
 func handleInternalResponse(body []byte, target interface{}) (srvReply ServiceReply) {
