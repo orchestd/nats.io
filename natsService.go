@@ -15,6 +15,8 @@ type NatsService interface {
 	QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData) error
 	Subscribe(subj string, handler NatsHandler) error
 	SubscribeExternal(subj string, handler NatsHandlerPlainData) error
+	Unsubscribe(subj string) error
+	QueueUnsubscribe(subj, queue string) error
 	SetConnectionFailedHandler(func(err error))
 	Connect(natsUrl, serviceName string, authOpt nats.Option,
 		connectionAttempts, reconnectionAttempts, reconnectWaitSec, maxPingsOutstanding, pingIntervalSec int) error
