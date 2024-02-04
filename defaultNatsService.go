@@ -236,7 +236,7 @@ func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout tim
 	resp, err := n.nc.Request(subj, msg, timeout)
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
-			return nil, err
+			return nil, errors.Join(err, fmt.Errorf("subj: "+subj))
 		}
 		return nil, fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj, err))
 	}
