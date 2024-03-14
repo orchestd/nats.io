@@ -1,118 +1,69 @@
 package natsio
 
 import (
-	"bytes"
 	"context"
-	"github.com/nats-io/nats.go"
+	"github.com/go-masonry/mortar/utils"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	traceLog "github.com/opentracing/opentracing-go/log"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
+	. "github.com/orchestd/servicereply"
 	"go.uber.org/fx"
 	"time"
 )
 
-func NewDefaultNatsServiceWithTrace(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
-	connect = func(natsUrl string, options ...nats.Option) (NatsConnection, error) {
-		con, err := nats.Connect(natsUrl, options...)
-		if err != nil {
-			return nil, err
-		}
-		return natsServiceWithTrace{
-			tracer: tracer,
-			logger: logger,
-			nc:     con,
-		}, nil
+func NewTraceNatsServiceWithBasicAuth(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
+	service := &natsServiceWithTrace{
+		tracer:      tracer,
+		config:      config,
+		NatsService: NewNatsServiceWithBasicAuth(lc, config, logger, credentials),
 	}
 
-	return NewNatsServiceWithJWTAuth(lc, config, credentials, logger)
+	return service
 }
 
-func NewNatsServiceWithTraceBasicAuth(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
-	connect = func(natsUrl string, options ...nats.Option) (NatsConnection, error) {
-		con, err := nats.Connect(natsUrl, options...)
-		if err != nil {
-			return nil, err
-		}
-		return natsServiceWithTrace{
-			tracer: tracer,
-			logger: logger,
-			nc:     con,
-		}, nil
+func NewTraceNatsServiceWithJWTAuth(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
+	service := &natsServiceWithTrace{
+		tracer:      tracer,
+		config:      config,
+		NatsService: NewNatsServiceWithJWTAuth(lc, config, credentials, logger),
 	}
 
-	return NewNatsServiceWithBasicAuth(lc, config, logger, credentials)
+	return service
 }
 
 type natsServiceWithTrace struct {
 	tracer opentracing.Tracer
-	logger log.Logger
-	nc     NatsConnection
+	config configuration.Config
+	NatsService
 }
 
-func (n natsServiceWithTrace) Close() {
-	n.nc.Close()
+func addBodyToSpan(span opentracing.Span, name string, msg interface{}) {
+	bytes, err := utils.MarshalMessageBody(msg)
+	if err == nil {
+		span.LogFields(traceLog.String(name, string(bytes)))
+	} else {
+		span.LogKV(name, msg)
+	}
 }
 
-func (n natsServiceWithTrace) Publish(subj string, msg []byte) error {
-	var t traceMsg
-	pubSpan := n.tracer.StartSpan("Published Message", ext.SpanKindProducer)
-	ext.MessageBusDestination.Set(pubSpan, subj)
-	defer pubSpan.Finish()
+func (n natsServiceWithTrace) Request(c context.Context, subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
+	sp, _ := opentracing.StartSpanFromContextWithTracer(c, n.tracer, "nats/"+subj)
+	defer sp.Finish()
+	ext.DBStatement.Set(sp, "nats/"+subj)
+	serviceName, _ := n.config.GetServiceName()
+	ext.Component.Set(sp, serviceName)
+	addBodyToSpan(sp, "request", data)
 
-	if err := n.tracer.Inject(pubSpan.Context(), opentracing.Binary, &t); err != nil {
-		n.logger.Error(context.Background(), "can't inject trace token for publish subj:%v, err:%v", subj, err)
+	reply := n.NatsService.Request(c, subj, data, timeout, target)
+
+	if reply != nil {
+		addBodyToSpan(sp, "response", reply)
+	} else {
+		addBodyToSpan(sp, "response", target)
 	}
 
-	t.Write(msg)
-
-	return n.nc.Publish(subj, t.Bytes())
-}
-
-func (n natsServiceWithTrace) Request(subj string, msg []byte, timeout time.Duration) (*nats.Msg, error) {
-	reqSpan := n.tracer.StartSpan("Service Request", ext.SpanKindRPCClient)
-	ext.MessageBusDestination.Set(reqSpan, subj)
-	defer reqSpan.Finish()
-
-	var t traceMsg
-
-	if err := n.tracer.Inject(reqSpan.Context(), opentracing.Binary, &t); err != nil {
-		n.logger.Error(context.Background(), "can't inject trace token for request subj:%v, err:%v", subj, err)
-	}
-
-	t.Write(msg)
-
-	return n.nc.Request(subj, t.Bytes(), timeout)
-}
-
-func (n natsServiceWithTrace) QueueSubscribe(subj string, queue string, handler nats.MsgHandler) (*nats.Subscription, error) {
-	return n.nc.QueueSubscribe(subj, queue, func(msg *nats.Msg) {
-		t := newTraceMsg(msg)
-
-		tokenExtracted := true
-
-		sc, err := n.tracer.Extract(opentracing.Binary, t)
-		if err != nil {
-			tokenExtracted = false
-			n.logger.Error(context.Background(), "can't extract trace token from request subj:%v, err:%v", subj, err)
-		}
-
-		if tokenExtracted {
-			span := n.tracer.StartSpan("Received Message", ext.SpanKindConsumer, opentracing.FollowsFrom(sc))
-			ext.MessageBusDestination.Set(span, msg.Subject)
-			defer span.Finish()
-		}
-
-		handler(msg)
-	})
-}
-
-type traceMsg struct {
-	bytes.Buffer
-}
-
-func newTraceMsg(m *nats.Msg) *traceMsg {
-	b := bytes.NewBuffer(m.Data)
-	return &traceMsg{*b}
+	return reply
 }

@@ -1,6 +1,7 @@
 package natsio
 
 import (
+	"context"
 	"github.com/nats-io/nats.go"
 	. "github.com/orchestd/servicereply"
 	"time"
@@ -10,7 +11,7 @@ type NatsService interface {
 	PublishExternal(subj string, msg []byte) error
 	Publish(subj string, data interface{}) error
 	RequestExternal(subj string, msg []byte, timeout time.Duration) ([]byte, error)
-	Request(subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply
+	Request(c context.Context, subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply
 	QueueSubscribe(subj, queue string, handler NatsHandler) error
 	QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData) error
 	Subscribe(subj string, handler NatsHandler) error
