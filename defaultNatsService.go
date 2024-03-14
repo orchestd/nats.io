@@ -247,7 +247,7 @@ func (n defaultNatsService) IsNoResponderErr(err error) bool {
 	return errors.Is(err, nats.ErrNoResponders)
 }
 
-func (n defaultNatsService) Request(subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
+func (n defaultNatsService) Request(c context.Context, subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return NewInternalServiceError(fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj+" data can't be convert into JSON.", err)))
