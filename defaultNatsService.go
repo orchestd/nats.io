@@ -321,6 +321,9 @@ func (n *defaultNatsService) QueueSubscribeExternal(subj, queue string, handler 
 		n.logger.Debug(ctx, "QueueSubscribeExternal got msg subj %s ", subj)
 		resp := handler.Exec(msg.Data)
 		n.logger.Debug(ctx, "QueueSubscribeExternal subj %s exec resp %+v", subj, string(resp))
+		if msg.Reply == "" {
+			return
+		}
 		err := msg.Respond(resp)
 		if err != nil {
 			n.logger.Error(context.Background(), n.formatErrorMsg(fmt.Sprintf("can't send response on QueueSubscribeExternal subj: %v, queue: %v.", subj, queue), err))
