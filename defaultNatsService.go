@@ -320,7 +320,7 @@ func (n *defaultNatsService) QueueSubscribeExternal(subj, queue string, handler 
 		ctx := context.Background()
 		n.logger.Debug(ctx, "QueueSubscribeExternal got msg subj %s ", subj)
 		resp := handler.Exec(msg.Data)
-		n.logger.Debug(ctx, "QueueSubscribeExternal subj %s exec resp %+v", subj, resp)
+		n.logger.Debug(ctx, "QueueSubscribeExternal subj %s exec resp %+v", subj, string(resp))
 		err := msg.Respond(resp)
 		if err != nil {
 			n.logger.Error(context.Background(), n.formatErrorMsg(fmt.Sprintf("can't send response on QueueSubscribeExternal subj: %v, queue: %v.", subj, queue), err))
@@ -361,6 +361,9 @@ func (n *defaultNatsService) SubscribeExternal(subj string, handler NatsHandlerP
 }
 
 func (n defaultNatsService) respond(subj, queue string, msg *nats.Msg, b []byte) {
+	if msg.Reply == "" {
+		return
+	}
 	err := n.nc.Publish(msg.Reply, b)
 	if err != nil {
 		n.logger.Error(context.Background(), n.formatErrorMsg(fmt.Sprintf("can't send response on queue subscribe subj: %v, queue: %v.", subj, queue), err))
