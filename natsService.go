@@ -2,9 +2,11 @@ package natsio
 
 import (
 	"context"
-	"github.com/nats-io/nats.go"
-	. "github.com/orchestd/servicereply"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"github.com/orchestd/nats.io/middlewares"
+	. "github.com/orchestd/servicereply"
 )
 
 type NatsService interface {
@@ -12,10 +14,10 @@ type NatsService interface {
 	Publish(subj string, data interface{}) error
 	RequestExternal(subj string, msg []byte, timeout time.Duration) ([]byte, error)
 	Request(c context.Context, subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply
-	QueueSubscribe(subj, queue string, handler NatsHandler) error
-	QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData) error
-	Subscribe(subj string, handler NatsHandler) error
-	SubscribeExternal(subj string, handler NatsHandlerPlainData) error
+	QueueSubscribe(subj, queue string, handler NatsHandler, middlewares ...middlewares.Middleware) error
+	QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData, middlewares ...middlewares.Middleware) error
+	Subscribe(subj string, handler NatsHandler, middlewares ...middlewares.Middleware) error
+	SubscribeExternal(subj string, handler NatsHandlerPlainData, middlewares ...middlewares.Middleware) error
 	Unsubscribe(subj string) error
 	QueueUnsubscribe(subj, queue string) error
 	SetConnectionFailedHandler(func(err error))

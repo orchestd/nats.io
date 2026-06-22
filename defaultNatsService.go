@@ -5,15 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/nats-io/nats.go"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
+	"github.com/orchestd/nats.io/middlewares"
 	. "github.com/orchestd/servicereply"
 	"github.com/orchestd/servicereply/status"
 	"go.uber.org/fx"
-	"reflect"
-	"time"
 )
 
 var connect = func(natsUrl string, options ...nats.Option) (NatsConnection, error) {
@@ -278,11 +280,12 @@ func (n defaultNatsService) checkSubscribe(subj, queue string) error {
 	return nil
 }
 
-func (n defaultNatsService) QueueSubscribe(subj, queue string, handler NatsHandler) error {
+func (n defaultNatsService) QueueSubscribe(subj, queue string, handler NatsHandler, middlewares ...middlewares.Middleware) error {
 	if err := n.checkSubscribe(subj, queue); err != nil {
 		return err
 	}
-	subscription, err := n.nc.QueueSubscribe(subj, queue, func(msg *nats.Msg) {
+
+	msgHandler := func(msg *nats.Msg) {
 		newHandler := createNewInnerHandler(handler)
 		err := json.Unmarshal(msg.Data, &newHandler)
 		if err != nil {
@@ -304,7 +307,13 @@ func (n defaultNatsService) QueueSubscribe(subj, queue string, handler NatsHandl
 			return
 		}
 		n.respond(subj, queue, msg, b)
-	})
+	}
+
+	for _, mw := range middlewares {
+		msgHandler = mw.Exec(msgHandler)
+	}
+
+	subscription, err := n.nc.QueueSubscribe(subj, queue, msgHandler)
 	if err != nil {
 		return fmt.Errorf(n.formatErrorMsg("can't queue subscribe subj: "+subj+", queue:"+queue+" %v.", err))
 	}
@@ -312,11 +321,12 @@ func (n defaultNatsService) QueueSubscribe(subj, queue string, handler NatsHandl
 	return nil
 }
 
-func (n *defaultNatsService) QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData) error {
+func (n *defaultNatsService) QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData, middlewares ...middlewares.Middleware) error {
 	if err := n.checkSubscribe(subj, queue); err != nil {
 		return err
 	}
-	subscription, err := n.nc.QueueSubscribe(subj, queue, func(msg *nats.Msg) {
+
+	msgHandler := func(msg *nats.Msg) {
 		ctx := context.Background()
 		n.logger.Debug(ctx, "QueueSubscribeExternal got msg subj %s ", subj)
 		resp := handler.Exec(msg.Data)
@@ -330,7 +340,13 @@ func (n *defaultNatsService) QueueSubscribeExternal(subj, queue string, handler 
 		} else {
 			n.logger.Debug(ctx, "QueueSubscribeExternal response okay subj %s", subj)
 		}
-	})
+	}
+
+	for _, mw := range middlewares {
+		msgHandler = mw.Exec(msgHandler)
+	}
+
+	subscription, err := n.nc.QueueSubscribe(subj, queue, msgHandler)
 	if err != nil {
 		return fmt.Errorf(n.formatErrorMsg("can't queue subscribe subj: "+subj+", queue:"+queue+" %v.", err))
 	}
@@ -355,12 +371,12 @@ func (n *defaultNatsService) Unsubscribe(subj string) error {
 	return nil
 }
 
-func (n *defaultNatsService) Subscribe(subj string, handler NatsHandler) error {
-	return n.QueueSubscribe(subj, "", handler)
+func (n *defaultNatsService) Subscribe(subj string, handler NatsHandler, middlewares ...middlewares.Middleware) error {
+	return n.QueueSubscribe(subj, "", handler, middlewares...)
 }
 
-func (n *defaultNatsService) SubscribeExternal(subj string, handler NatsHandlerPlainData) error {
-	return n.QueueSubscribeExternal(subj, "", handler)
+func (n *defaultNatsService) SubscribeExternal(subj string, handler NatsHandlerPlainData, middlewares ...middlewares.Middleware) error {
+	return n.QueueSubscribeExternal(subj, "", handler, middlewares...)
 }
 
 func (n defaultNatsService) respond(subj, queue string, msg *nats.Msg, b []byte) {
