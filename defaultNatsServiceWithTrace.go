@@ -2,6 +2,8 @@ package natsio
 
 import (
 	"context"
+	"time"
+
 	"github.com/go-masonry/mortar/utils"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -11,7 +13,6 @@ import (
 	"github.com/orchestd/dependencybundler/interfaces/log"
 	. "github.com/orchestd/servicereply"
 	"go.uber.org/fx"
-	"time"
 )
 
 func NewTraceNatsServiceWithBasicAuth(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
@@ -49,7 +50,7 @@ func addBodyToSpan(span opentracing.Span, name string, msg interface{}) {
 	}
 }
 
-func (n natsServiceWithTrace) Request(c context.Context, subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
+func (n natsServiceWithTrace) Request(c context.Context, subj string, data interface{}, headers map[string]string, timeout time.Duration, target interface{}) ServiceReply {
 	sp, _ := opentracing.StartSpanFromContextWithTracer(c, n.tracer, "nats/"+subj)
 	defer sp.Finish()
 	ext.DBStatement.Set(sp, "nats/"+subj)
@@ -57,7 +58,7 @@ func (n natsServiceWithTrace) Request(c context.Context, subj string, data inter
 	ext.Component.Set(sp, serviceName)
 	addBodyToSpan(sp, "request", data)
 
-	reply := n.NatsService.Request(c, subj, data, timeout, target)
+	reply := n.NatsService.Request(c, subj, data, headers, timeout, target)
 
 	if reply != nil {
 		addBodyToSpan(sp, "response", reply)

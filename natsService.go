@@ -10,10 +10,10 @@ import (
 )
 
 type NatsService interface {
-	PublishExternal(subj string, msg []byte) error
-	Publish(subj string, data interface{}) error
-	RequestExternal(subj string, msg []byte, timeout time.Duration) ([]byte, error)
-	Request(c context.Context, subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply
+	PublishExternal(subj string, msg []byte, headers map[string]string) error
+	Publish(subj string, data interface{}, headers map[string]string) error
+	RequestExternal(subj string, msg []byte, headers map[string]string, timeout time.Duration) ([]byte, error)
+	Request(c context.Context, subj string, data interface{}, headers map[string]string, timeout time.Duration, target interface{}) ServiceReply
 	QueueSubscribe(subj, queue string, handler NatsHandler, middlewares ...middlewares.Middleware) error
 	QueueSubscribeExternal(subj, queue string, handler NatsHandlerPlainData, middlewares ...middlewares.Middleware) error
 	Subscribe(subj string, handler NatsHandler, middlewares ...middlewares.Middleware) error
@@ -29,7 +29,9 @@ type NatsService interface {
 type NatsConnection interface {
 	Close()
 	Publish(subj string, msg []byte) error
+	PublishMsg(m *nats.Msg) error
 	Request(subj string, msg []byte, timeout time.Duration) (*nats.Msg, error)
+	RequestMsg(msg *nats.Msg, timeout time.Duration) (*nats.Msg, error)
 	QueueSubscribe(subj string, queue string, handler nats.MsgHandler) (*nats.Subscription, error)
 }
 

@@ -210,32 +210,42 @@ func (n defaultNatsService) wasInitialized() error {
 	return nil
 }
 
-func (n defaultNatsService) PublishExternal(subj string, msg []byte) error {
+func (n defaultNatsService) PublishExternal(subj string, msgBytes []byte, header map[string]string) error {
 	err := n.wasInitialized()
 	if err != nil {
 		return err
 	}
-	err = n.nc.Publish(subj, msg)
+	msg := nats.NewMsg(subj)
+	msg.Data = msgBytes
+	for k, v := range header {
+		msg.Header.Set(k, v)
+	}
+	err = n.nc.PublishMsg(msg)
 	if err != nil {
 		return fmt.Errorf(n.formatErrorMsg("can't publish message subject: "+subj, err))
 	}
 	return nil
 }
 
-func (n defaultNatsService) Publish(subj string, data interface{}) error {
+func (n defaultNatsService) Publish(subj string, data interface{}, header map[string]string) error {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf(n.formatErrorMsg("can't publish message subject: "+subj+" data can't be convert into JSON.", err))
 	}
-	return n.PublishExternal(subj, b)
+	return n.PublishExternal(subj, b, header)
 }
 
-func (n defaultNatsService) RequestExternal(subj string, msg []byte, timeout time.Duration) ([]byte, error) {
+func (n defaultNatsService) RequestExternal(subj string, msgBytes []byte, header map[string]string, timeout time.Duration) ([]byte, error) {
 	err := n.wasInitialized()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := n.nc.Request(subj, msg, timeout)
+	msg := nats.NewMsg(subj)
+	msg.Data = msgBytes
+	for k, v := range header {
+		msg.Header.Set(k, v)
+	}
+	resp, err := n.nc.RequestMsg(msg, timeout)
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
 			return nil, errors.Join(err, fmt.Errorf("subj: "+subj))
@@ -249,12 +259,12 @@ func (n defaultNatsService) IsNoResponderErr(err error) bool {
 	return errors.Is(err, nats.ErrNoResponders)
 }
 
-func (n defaultNatsService) Request(c context.Context, subj string, data interface{}, timeout time.Duration, target interface{}) ServiceReply {
+func (n defaultNatsService) Request(c context.Context, subj string, data interface{}, header map[string]string, timeout time.Duration, target interface{}) ServiceReply {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return NewInternalServiceError(fmt.Errorf(n.formatErrorMsg("can't request message subject: "+subj+" data can't be convert into JSON.", err)))
 	}
-	rb, err := n.RequestExternal(subj, b, timeout)
+	rb, err := n.RequestExternal(subj, b, header, timeout)
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
 			return NewInternalServiceError(err)
