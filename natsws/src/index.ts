@@ -59,7 +59,7 @@ export type ActionHandler<T = unknown> = (channel: string, data: T) => void;
 class MessagingService {
   private conn: NatsConnection | null = null;
   private readonly codec = JSONCodec();
-  private defaultTimeout = 10_000;
+  private defaultTimeout = 10000;
 
   /**
    * Connect to NATS server and start status listener.
@@ -70,7 +70,7 @@ class MessagingService {
       user,
       pass,
       authenticator,
-      timeoutMs = 10_000,
+      timeoutMs = 10000,
       maxReconnectAttempts = -1,
       reconnectTimeWaitMs = 2000,
       pingIntervalMs = 2000,
@@ -93,9 +93,6 @@ class MessagingService {
     return this.conn;
   }
 
-  /**
-   * Request-Reply pattern (TCP-like sync semantics)
-   */
   async request<TResponse extends StandardResponse = StandardResponse>(
     channel: string,
     msg: Message,
@@ -114,17 +111,11 @@ class MessagingService {
     return decoded;
   }
 
-  /**
-   * Fire-and-forget publish (UDP-like async semantics)
-   */
   publish<TBody = unknown>(channel: string, msg: TBody): void {
     const conn = this.getConn();
     conn.publish(channel, this.codec.encode(msg));
   }
 
-  /**
-   * Simple subscription wrapper
-   */
   subscribe(
     channel: string,
     msgHandler: (channel: string, data: Message) => void
@@ -147,9 +138,6 @@ class MessagingService {
     });
   }
 
-  /**
-   * Graceful connection disconnect
-   */
   async disconnect(): Promise<void> {
     if (this.conn) {
       await this.conn.drain();
@@ -194,10 +182,9 @@ class MessagingService {
   }
 }
 
-// Singleton export
 export const messagingService = new MessagingService();
 
-// Standalone function exports matching original API surface
+// Standalone function exports
 export const connectMessagingService = (config: ConnectionConfig) => {
   switch (config.authType) {
     case 'userpass':
