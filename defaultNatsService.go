@@ -12,6 +12,7 @@ import (
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
+	"github.com/orchestd/nats.io/authResolver"
 	"github.com/orchestd/nats.io/middlewares"
 	. "github.com/orchestd/servicereply"
 	"github.com/orchestd/servicereply/status"
@@ -34,6 +35,13 @@ func NewNatsServiceWithoutConnection(logger log.Logger) NatsService {
 		logger:        logger,
 		subscriptions: map[string]*nats.Subscription{},
 	}
+}
+
+// when using NewNatsServiceWithAuthResolver, make sure to add to deps an authResolver (see authResolver folder)
+func NewNatsServiceWithAuthResolver(lc fx.Lifecycle, config configuration.Config, logger log.Logger, resolver authResolver.AuthResolver) NatsService {
+	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
+		return resolver.GetBackendOption()
+	})
 }
 
 func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
