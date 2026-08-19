@@ -111,7 +111,7 @@ class MessagingService {
     return decoded;
   }
 
-  publish<TBody = unknown>(channel: string, msg: TBody): void {
+  publish(channel: string, msg: Message): void {
     const conn = this.getConn();
     conn.publish(channel, this.codec.encode(msg));
   }
@@ -212,7 +212,7 @@ export const request = <R extends StandardResponse = StandardResponse>(
   opt?: RequestOptions
 ) => messagingService.request<R>(channel, msg, opt);
 
-export const publish = <T = unknown>(channel: string, msg: T) =>
+export const publish = (channel: string, msg: Message) =>
   messagingService.publish(channel, msg);
 
 export const subscribeWithMsgHandler = (
