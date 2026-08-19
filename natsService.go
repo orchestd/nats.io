@@ -40,3 +40,12 @@ type NatsHandler interface {
 type NatsHandlerPlainData interface {
 	Exec(data []byte) []byte
 }
+
+type NatsServiceConfiguration struct {
+	NatsAuthType string `json:"natsAuthType"`
+	NatsUrl      string `json:"natsUrl"`
+	WebsocketUrl string `json:"websocketUrl"`
+	FeNatsJWT    string `json:"feNatsJWT"`
+	FeNatsPw     string `json:"feNatsPw"`
+	FeNatsUser   string `json:"feNatsUser"`
+}
