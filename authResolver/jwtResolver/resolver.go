@@ -33,16 +33,21 @@ func (r *jwtAuthResolver) GetBackendOption() nats.Option {
 }
 
 func (r *jwtAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver.FrontendConnectionConfig, error) {
-	natsUser, err := r.config.Get("feNatsJWT").String()
+	wsUrl, err := r.config.Get("websocketUrl").String()
+	if err != nil {
+		panic("can't get credentials by key feNatsUser")
+	}
+
+	jwt, err := r.config.Get("feNatsJWT").String()
 	if err != nil {
 		return authResolver.FrontendConnectionConfig{}, fmt.Errorf("can't get credentials by key feNatsUser")
 	}
 
 	return authResolver.FrontendConnectionConfig{
-		AuthType: "basic",
-		Servers:  []string{},
-		Credentials: authResolver.BasicAuthCredentials{
-			Username: natsUser,
+		AuthType: "jwt",
+		Servers:  []string{wsUrl},
+		Credentials: authResolver.JWTAuthCredentials{
+			JWT: jwt,
 		},
 	}, nil
 }

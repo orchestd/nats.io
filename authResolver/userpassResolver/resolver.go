@@ -32,6 +32,11 @@ func (r *basicAuthResolver) GetBackendOption() nats.Option {
 }
 
 func (r *basicAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver.FrontendConnectionConfig, error) {
+	wsUrl, err := r.config.Get("websocketUrl").String()
+	if err != nil {
+		panic("can't get credentials by key feNatsUser")
+	}
+
 	natsUser, err := r.config.Get("feNatsUser").String()
 	if err != nil {
 		panic("can't get credentials by key feNatsUser")
@@ -43,7 +48,7 @@ func (r *basicAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver
 	}
 	return authResolver.FrontendConnectionConfig{
 		AuthType: "basic",
-		Servers:  []string{},
+		Servers:  []string{wsUrl},
 		Credentials: authResolver.BasicAuthCredentials{
 			Username: natsUser,
 			Password: natsPw,
