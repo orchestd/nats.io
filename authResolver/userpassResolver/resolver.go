@@ -47,7 +47,7 @@ func (r *basicAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver
 		panic("can't get credentials by key feNatsPw")
 	}
 	return authResolver.FrontendConnectionConfig{
-		AuthType: "basic",
+		AuthType: "userpass",
 		Servers:  []string{wsUrl},
 		Credentials: authResolver.BasicAuthCredentials{
 			Username: natsUser,
