@@ -1,4 +1,4 @@
-package userpassResolver
+package userpass
 
 import (
 	"context"
@@ -6,19 +6,19 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
-	"github.com/orchestd/nats.io/authResolver"
+	"github.com/orchestd/nats.io/auth"
 )
 
-type basicAuthResolver struct {
+type provider struct {
 	credentials credentials.CredentialsGetter
 	config      configuration.Config
 }
 
-func NewAuthResolver(credentials credentials.CredentialsGetter, config configuration.Config) authResolver.AuthResolver {
-	return &basicAuthResolver{credentials: credentials, config: config}
+func NewProvider(credentials credentials.CredentialsGetter, config configuration.Config) auth.Provider {
+	return &provider{credentials: credentials, config: config}
 }
 
-func (r *basicAuthResolver) GetBackendOption() nats.Option {
+func (r *provider) GetBackendOption() nats.Option {
 	natsUser := r.credentials.GetCredentials().NatsUser
 	if natsUser == "" {
 		panic("can't get credentials by key NatsUser")
@@ -31,7 +31,7 @@ func (r *basicAuthResolver) GetBackendOption() nats.Option {
 	return authOpt
 }
 
-func (r *basicAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver.FrontendConnectionConfig, error) {
+func (r *provider) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
 	wsUrl, err := r.config.Get("websocketUrl").String()
 	if err != nil {
 		panic("can't get credentials by key feNatsUser")
@@ -46,10 +46,10 @@ func (r *basicAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver
 	if err != nil {
 		panic("can't get credentials by key feNatsPw")
 	}
-	return authResolver.FrontendConnectionConfig{
+	return auth.FrontendConnectionConfig{
 		AuthType: "userpass",
 		Servers:  []string{wsUrl},
-		Credentials: authResolver.BasicAuthCredentials{
+		Credentials: auth.BasicAuthCredentials{
 			Username: natsUser,
 			Password: natsPw,
 		},

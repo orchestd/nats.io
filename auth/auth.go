@@ -1,4 +1,4 @@
-package authResolver
+package auth
 
 import (
 	"context"
@@ -21,7 +21,7 @@ type JWTAuthCredentials struct {
 	JWT string `json:"jwt"`
 }
 
-type AuthResolver interface {
+type Provider interface {
 	GetBackendOption() nats.Option
 	GetFrontendConfig(ctx context.Context) (FrontendConnectionConfig, error)
 }

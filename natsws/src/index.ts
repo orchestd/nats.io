@@ -60,10 +60,8 @@ class MessagingService {
   private conn: NatsConnection | null = null;
   private readonly codec = JSONCodec();
   private defaultTimeout = 10000;
+  private subscriptions: Record<string, Subscription> = {}
 
-  /**
-   * Connect to NATS server and start status listener.
-   */
   async connect(config: MessagingConfig): Promise<NatsConnection> {
     const {
       servers,
@@ -120,9 +118,9 @@ class MessagingService {
     channel: string,
     msgHandler: (channel: string, data: Message) => void
   ): Subscription {
+    if (this.subscriptions[channel]) return this.subscriptions[channel]
     const conn = this.getConn();
-
-    return conn.subscribe(channel, {
+    const sub = conn.subscribe(channel, {
       callback: (err: Error | null, msg: Msg) => {
         if (err) {
           console.error(`[NATS] Subscription error on channel ${channel}:`, err);
@@ -136,6 +134,19 @@ class MessagingService {
         }
       },
     });
+    this.subscriptions[channel] = sub
+    return sub
+  }
+
+  unsubscribe(channel: string) {
+    const sub = this.subscriptions[channel]
+    if (sub) {
+      sub.drain()
+        .then(() => {
+          sub.unsubscribe()
+          delete this.subscriptions[channel]
+        })
+    }
   }
 
   async disconnect(): Promise<void> {
@@ -219,3 +230,7 @@ export const subscribeWithMsgHandler = (
   channel: string,
   msgHandler: (channel: string, data: Message) => void
 ) => messagingService.subscribe(channel, msgHandler);
+
+export const unsubscribe = (
+  channel: string,
+) => messagingService.unsubscribe(channel);

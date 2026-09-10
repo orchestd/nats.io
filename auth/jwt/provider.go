@@ -1,4 +1,4 @@
-package jwtResolver
+package jwt
 
 import (
 	"context"
@@ -7,19 +7,19 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
-	"github.com/orchestd/nats.io/authResolver"
+	"github.com/orchestd/nats.io/auth"
 )
 
-type jwtAuthResolver struct {
+type provider struct {
 	credentials credentials.CredentialsGetter
 	config      configuration.Config
 }
 
-func NewAuthResolver(credentials credentials.CredentialsGetter, config configuration.Config) authResolver.AuthResolver {
-	return &jwtAuthResolver{credentials: credentials, config: config}
+func NewProvider(credentials credentials.CredentialsGetter, config configuration.Config) auth.Provider {
+	return &provider{credentials: credentials, config: config}
 }
 
-func (r *jwtAuthResolver) GetBackendOption() nats.Option {
+func (r *provider) GetBackendOption() nats.Option {
 	natsJwt := r.credentials.GetCredentials().NatsJWT
 	if natsJwt == "" {
 		panic("can't get credentials by key NatsJWT")
@@ -32,7 +32,7 @@ func (r *jwtAuthResolver) GetBackendOption() nats.Option {
 	return authOpt
 }
 
-func (r *jwtAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver.FrontendConnectionConfig, error) {
+func (r *provider) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
 	wsUrl, err := r.config.Get("websocketUrl").String()
 	if err != nil {
 		panic("can't get credentials by key feNatsUser")
@@ -40,13 +40,13 @@ func (r *jwtAuthResolver) GetFrontendConfig(ctx context.Context) (authResolver.F
 
 	jwt, err := r.config.Get("feNatsJWT").String()
 	if err != nil {
-		return authResolver.FrontendConnectionConfig{}, fmt.Errorf("can't get credentials by key feNatsUser")
+		return auth.FrontendConnectionConfig{}, fmt.Errorf("can't get credentials by key feNatsUser")
 	}
 
-	return authResolver.FrontendConnectionConfig{
+	return auth.FrontendConnectionConfig{
 		AuthType: "jwt",
 		Servers:  []string{wsUrl},
-		Credentials: authResolver.JWTAuthCredentials{
+		Credentials: auth.JWTAuthCredentials{
 			JWT: jwt,
 		},
 	}, nil

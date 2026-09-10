@@ -11,16 +11,16 @@ import (
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
-	"github.com/orchestd/nats.io/authResolver"
+	"github.com/orchestd/nats.io/auth"
 	. "github.com/orchestd/servicereply"
 	"go.uber.org/fx"
 )
 
-func NewTraceNatsServiceWithAuthResolver(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter, resolver authResolver.AuthResolver) NatsService {
+func NewTraceNatsServiceWithAuthProvider(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter, resolver auth.Provider) NatsService {
 	service := &natsServiceWithTrace{
 		tracer:      tracer,
 		config:      config,
-		NatsService: NewNatsServiceWithAuthResolver(lc, config, logger, resolver),
+		NatsService: NewNatsServiceWithAuthProvider(lc, config, logger, resolver),
 	}
 
 	return service
