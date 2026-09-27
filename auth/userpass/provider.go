@@ -2,6 +2,7 @@ package userpass
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/nats-io/nats.go"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
@@ -9,16 +10,23 @@ import (
 	"github.com/orchestd/nats.io/auth"
 )
 
-type provider struct {
+const AuthType = "userpass"
+
+type configGetter struct {
 	credentials credentials.CredentialsGetter
-	config      configuration.Config
+	config      auth.NatsSettings
 }
 
-func NewProvider(credentials credentials.CredentialsGetter, config configuration.Config) auth.Provider {
-	return &provider{credentials: credentials, config: config}
+func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config) auth.ConfigGetter {
+	conf := auth.NatsSettings{}
+	err := config.Get("natsSettings").Unmarshal(&conf)
+	if err != nil {
+		panic("can't get natsSettings from conf")
+	}
+	return &configGetter{credentials: credentials, config: conf}
 }
 
-func (r *provider) GetBackendOption() nats.Option {
+func (r *configGetter) GetBackendOption() nats.Option {
 	natsUser := r.credentials.GetCredentials().NatsUser
 	if natsUser == "" {
 		panic("can't get credentials by key NatsUser")
@@ -31,24 +39,23 @@ func (r *provider) GetBackendOption() nats.Option {
 	return authOpt
 }
 
-func (r *provider) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
-	wsUrl, err := r.config.Get("websocketUrl").String()
-	if err != nil {
-		panic("can't get credentials by key feNatsUser")
+func (r *configGetter) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
+	if r.config.Frontend.Url == "" {
+		return auth.FrontendConnectionConfig{}, nil
 	}
 
-	natsUser, err := r.config.Get("feNatsUser").String()
-	if err != nil {
-		panic("can't get credentials by key feNatsUser")
+	natsUser := r.config.Frontend.User
+	if natsUser == "" {
+		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.user is empty")
 	}
 
-	natsPw, err := r.config.Get("feNatsPw").String()
-	if err != nil {
-		panic("can't get credentials by key feNatsPw")
+	natsPw := r.config.Frontend.Password
+	if natsPw == "" {
+		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.password is empty")
 	}
 	return auth.FrontendConnectionConfig{
-		AuthType: "userpass",
-		Servers:  []string{wsUrl},
+		AuthType: AuthType,
+		Servers:  []string{r.config.Frontend.Url},
 		Credentials: auth.BasicAuthCredentials{
 			Username: natsUser,
 			Password: natsPw,

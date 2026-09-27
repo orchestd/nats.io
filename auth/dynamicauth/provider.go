@@ -10,18 +10,20 @@ import (
 	"github.com/orchestd/nats.io/auth/userpass"
 )
 
-func NewProvider(credentials credentials.CredentialsGetter, config configuration.Config) auth.Provider {
-	authType, err := config.Get("natsAuthType").String()
+func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config) auth.ConfigGetter {
+	conf := auth.NatsSettings{}
+	err := config.Get("natsSettings").Unmarshal(&conf)
 	if err != nil {
-		panic("can't get authType by key natsAuthType. supports [userpass, jwt]")
+		panic("can't get natsSettings from conf")
 	}
 
-	switch authType {
-	case "userpass":
-		return userpass.NewProvider(credentials, config)
-	case "jwt":
-		return jwt.NewProvider(credentials, config)
+	switch conf.AuthType {
+	case userpass.AuthType:
+		return userpass.NewConfigGetter(credentials, config)
+	case jwt.AuthType:
+		return jwt.NewConfigGetter(credentials, config)
 	default:
-		panic(fmt.Sprintf("authType %s is not supported"))
+		panic(fmt.Sprintf("authType %s is not supported. supports [%s, %s]",
+			conf.AuthType, userpass.AuthType, jwt.AuthType))
 	}
 }

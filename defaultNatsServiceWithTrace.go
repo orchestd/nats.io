@@ -16,7 +16,7 @@ import (
 	"go.uber.org/fx"
 )
 
-func NewTraceNatsServiceWithAuthProvider(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter, resolver auth.Provider) NatsService {
+func NewTraceNatsServiceWithAuthProvider(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter, resolver auth.ConfigGetter) NatsService {
 	service := &natsServiceWithTrace{
 		tracer:      tracer,
 		config:      config,

@@ -38,7 +38,7 @@ func NewNatsServiceWithoutConnection(logger log.Logger) NatsService {
 }
 
 // when using NewNatsServiceWithAuthProvider, make sure to add to deps an authResolver (see authResolver folder)
-func NewNatsServiceWithAuthProvider(lc fx.Lifecycle, config configuration.Config, logger log.Logger, resolver auth.Provider) NatsService {
+func NewNatsServiceWithAuthProvider(lc fx.Lifecycle, config configuration.Config, logger log.Logger, resolver auth.ConfigGetter) NatsService {
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
 		return resolver.GetBackendOption()
 	})
@@ -83,9 +83,14 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 	if err != nil {
 		panic("can't get serviceName: " + err.Error())
 	}
-	natsUrl, err := config.Get("NatsUrl").String()
+	settings := auth.NatsSettings{}
+	err = config.Get("natsSettings").Unmarshal(&settings)
 	if err != nil {
-		panic("can't get conf by key NatsUrl " + err.Error())
+		panic("can't get natsSettings from conf, " + err.Error())
+	}
+	natsUrl := settings.Url
+	if natsUrl == "" {
+		panic("natsSettings url is empty")
 	}
 	connectionAttempts, err := config.Get("connectionAttempts").Int()
 	if err != nil {

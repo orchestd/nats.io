@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/orchestd/nats.io/auth"
 	"github.com/orchestd/nats.io/middlewares"
 	. "github.com/orchestd/servicereply"
 )
@@ -42,10 +43,5 @@ type NatsHandlerPlainData interface {
 }
 
 type NatsServiceConfiguration struct {
-	NatsAuthType string `json:"natsAuthType"`
-	NatsUrl      string `json:"natsUrl"`
-	WebsocketUrl string `json:"websocketUrl"`
-	FeNatsJWT    string `json:"feNatsJWT"`
-	FeNatsPw     string `json:"feNatsPw"`
-	FeNatsUser   string `json:"feNatsUser"`
+	NatsSettings auth.NatsSettingsI `json:"natsSettings"`
 }

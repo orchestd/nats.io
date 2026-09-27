@@ -21,7 +21,23 @@ type JWTAuthCredentials struct {
 	JWT string `json:"jwt"`
 }
 
-type Provider interface {
+type ConfigGetter interface {
 	GetBackendOption() nats.Option
 	GetFrontendConfig(ctx context.Context) (FrontendConnectionConfig, error)
+}
+
+// NatsSettingsI structure is identical to struct NatsSettings
+type NatsSettingsI interface{}
+
+type NatsSettings struct {
+	AuthType string                    `json:"authType"`
+	Url      string                    `json:"url"`
+	Frontend NatsFrontendConfiguration `json:"frontend"`
+}
+
+type NatsFrontendConfiguration struct {
+	Url      string `json:"url"`
+	JWT      string `json:"jwt"`
+	Password string `json:"password"`
+	User     string `json:"user"`
 }

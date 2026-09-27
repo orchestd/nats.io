@@ -10,16 +10,23 @@ import (
 	"github.com/orchestd/nats.io/auth"
 )
 
-type provider struct {
+const AuthType = "jwt"
+
+type configGetter struct {
 	credentials credentials.CredentialsGetter
-	config      configuration.Config
+	config      auth.NatsSettings
 }
 
-func NewProvider(credentials credentials.CredentialsGetter, config configuration.Config) auth.Provider {
-	return &provider{credentials: credentials, config: config}
+func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config) auth.ConfigGetter {
+	conf := auth.NatsSettings{}
+	err := config.Get("natsSettings").Unmarshal(&conf)
+	if err != nil {
+		panic("can't get natsSettings from conf")
+	}
+	return &configGetter{credentials: credentials, config: conf}
 }
 
-func (r *provider) GetBackendOption() nats.Option {
+func (r *configGetter) GetBackendOption() nats.Option {
 	natsJwt := r.credentials.GetCredentials().NatsJWT
 	if natsJwt == "" {
 		panic("can't get credentials by key NatsJWT")
@@ -32,20 +39,19 @@ func (r *provider) GetBackendOption() nats.Option {
 	return authOpt
 }
 
-func (r *provider) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
-	wsUrl, err := r.config.Get("websocketUrl").String()
-	if err != nil {
-		panic("can't get credentials by key feNatsUser")
+func (r *configGetter) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
+	if r.config.Frontend.Url == "" {
+		return auth.FrontendConnectionConfig{}, nil
 	}
 
-	jwt, err := r.config.Get("feNatsJWT").String()
-	if err != nil {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("can't get credentials by key feNatsUser")
+	jwt := r.config.Frontend.JWT
+	if jwt == "" {
+		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.jwt is empty")
 	}
 
 	return auth.FrontendConnectionConfig{
-		AuthType: "jwt",
-		Servers:  []string{wsUrl},
+		AuthType: AuthType,
+		Servers:  []string{r.config.Frontend.Url},
 		Credentials: auth.JWTAuthCredentials{
 			JWT: jwt,
 		},
