@@ -1,6 +1,6 @@
 {
   "name": "nats-service-wrapper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A lightweight TypeScript wrapper for nats.ws with JetStream and KV support",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
