@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/nats-io/nats.go"
@@ -14,16 +15,11 @@ const AuthType = "jwt"
 
 type configGetter struct {
 	credentials credentials.CredentialsGetter
-	config      auth.NatsSettings
+	settings    auth.NatsSettings
 }
 
-func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config) auth.ConfigGetter {
-	conf := auth.NatsSettings{}
-	err := config.Get("natsSettings").Unmarshal(&conf)
-	if err != nil {
-		panic("can't get natsSettings from conf")
-	}
-	return &configGetter{credentials: credentials, config: conf}
+func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config, settings auth.NatsSettings) auth.ConfigGetter {
+	return &configGetter{credentials: credentials, settings: settings}
 }
 
 func (r *configGetter) GetBackendOption() nats.Option {
@@ -40,20 +36,35 @@ func (r *configGetter) GetBackendOption() nats.Option {
 }
 
 func (r *configGetter) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
-	if r.config.Frontend.Url == "" {
+	if r.settings.Frontend.Url == "" {
 		return auth.FrontendConnectionConfig{}, nil
 	}
 
-	jwt := r.config.Frontend.JWT
+	var creds Credentials
+	credsBytes, err := json.Marshal(r.settings.Frontend.Creds)
+	if err != nil {
+		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds failed to marshal: %w", err)
+	}
+
+	err = json.Unmarshal(credsBytes, &creds)
+	if err != nil {
+		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds failed to unmarshal: %w", err)
+	}
+
+	jwt := creds.JWT
 	if jwt == "" {
 		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.jwt is empty")
 	}
 
 	return auth.FrontendConnectionConfig{
 		AuthType: AuthType,
-		Servers:  []string{r.config.Frontend.Url},
-		Credentials: auth.JWTAuthCredentials{
+		Servers:  []string{r.settings.Frontend.Url},
+		Credentials: Credentials{
 			JWT: jwt,
 		},
 	}, nil
+}
+
+type Credentials struct {
+	JWT string `json:"jwt"`
 }
