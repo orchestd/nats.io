@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/orchestd/nats.io/auth"
 	"github.com/orchestd/nats.io/middlewares"
 	. "github.com/orchestd/servicereply"
 )
@@ -39,4 +40,8 @@ type NatsHandler interface {
 
 type NatsHandlerPlainData interface {
 	Exec(data []byte) []byte
+}
+
+type NatsServiceConfiguration struct {
+	NatsSettings auth.NatsSettingsI `json:"natsSettings"`
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
+	"github.com/orchestd/nats.io/auth"
 	"github.com/orchestd/nats.io/middlewares"
 	. "github.com/orchestd/servicereply"
 	"github.com/orchestd/servicereply/status"
@@ -34,6 +35,15 @@ func NewNatsServiceWithoutConnection(logger log.Logger) NatsService {
 		logger:        logger,
 		subscriptions: map[string]*nats.Subscription{},
 	}
+}
+
+// when using NewNatsServiceWithAuthProvider, make sure to add to deps an auth.ConfigGetter.
+// You can use jwt.NewConfigGetter and userpass.NewConfigGetter.
+// You can also use dynamicauth.NewConfigGetter for the option to switch providers without building.
+func NewNatsServiceWithAuthProvider(lc fx.Lifecycle, config configuration.Config, logger log.Logger, authProvider auth.ConfigGetter) NatsService {
+	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
+		return authProvider.GetBackendOption()
+	})
 }
 
 func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
@@ -75,9 +85,14 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 	if err != nil {
 		panic("can't get serviceName: " + err.Error())
 	}
-	natsUrl, err := config.Get("NatsUrl").String()
+	settings := auth.NatsSettings{}
+	err = config.Get("natsSettings").Unmarshal(&settings)
 	if err != nil {
-		panic("can't get conf by key NatsUrl " + err.Error())
+		panic("can't get natsSettings from conf, " + err.Error())
+	}
+	natsUrl := settings.Url
+	if natsUrl == "" {
+		panic("natsSettings url is empty")
 	}
 	connectionAttempts, err := config.Get("connectionAttempts").Int()
 	if err != nil {

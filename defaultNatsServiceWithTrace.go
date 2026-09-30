@@ -2,6 +2,8 @@ package natsio
 
 import (
 	"context"
+	"time"
+
 	"github.com/go-masonry/mortar/utils"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -9,10 +11,20 @@ import (
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/log"
+	"github.com/orchestd/nats.io/auth"
 	. "github.com/orchestd/servicereply"
 	"go.uber.org/fx"
-	"time"
 )
+
+func NewTraceNatsServiceWithAuthProvider(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter, resolver auth.ConfigGetter) NatsService {
+	service := &natsServiceWithTrace{
+		tracer:      tracer,
+		config:      config,
+		NatsService: NewNatsServiceWithAuthProvider(lc, config, logger, resolver),
+	}
+
+	return service
+}
 
 func NewTraceNatsServiceWithBasicAuth(lc fx.Lifecycle, tracer opentracing.Tracer, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
 	service := &natsServiceWithTrace{
