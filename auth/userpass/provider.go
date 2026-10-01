@@ -42,7 +42,7 @@ func (r *configGetter) GetFrontendConfig(ctx context.Context) (auth.FrontendConn
 	}
 
 	var creds Credentials
-	credsBytes, err := json.Marshal(r.settings.Frontend.Creds)
+	credsBytes, err := json.Marshal(r.settings.Frontend.Credentials)
 	if err != nil {
 		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds failed to marshal: %w", err)
 	}

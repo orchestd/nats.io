@@ -27,6 +27,6 @@ type NatsSettings struct {
 }
 
 type NatsFrontendConfiguration struct {
-	Url   string      `json:"url"`
-	Creds interface{} `json:"creds"`
+	Url         string      `json:"url"`
+	Credentials interface{} `json:"credentials"`
 }
