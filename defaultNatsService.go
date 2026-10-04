@@ -49,13 +49,18 @@ func NewNatsServiceWithAuthProvider(lc fx.Lifecycle, config configuration.Config
 
 func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
-		natsUser := credentials.GetCredentials().NatsUser
-		if natsUser == "" {
-			panic("can't get credentials by key NatsUser")
+		creds, err := credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+		if err != nil {
+			panic(fmt.Sprintf("can't get credentials for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
 		}
-		natsPw := credentials.GetCredentials().NatsPw
+
+		natsUser := creds.Username
+		if natsUser == "" {
+			panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].usename")
+		}
+		natsPw := creds.Password
 		if natsPw == "" {
-			panic("can't get credentials by key NatsPw")
+			panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].password")
 		}
 		authOpt := nats.UserInfo(natsUser, natsPw)
 		return authOpt
@@ -63,13 +68,18 @@ func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, l
 }
 
 func NewNatsServiceWithJWTAuth(lc fx.Lifecycle, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
-	natsJWT := credentials.GetCredentials().NatsJWT
-	if natsJWT == "" {
-		panic("can't get credentials by key NatsJWT")
+	creds, err := credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+	if err != nil {
+		panic(fmt.Sprintf("can't get credentials for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
 	}
-	natsSeed := credentials.GetCredentials().NatsSeed
+
+	natsJWT := creds.JWT
+	if natsJWT == "" {
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].jwt", auth.DefaultBeClientId))
+	}
+	natsSeed := creds.Seed
 	if natsSeed == "" {
-		panic("can't get credentials by key NatsSeed")
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].seed", auth.DefaultBeClientId))
 	}
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
 		authOpt := nats.UserJWTAndSeed(natsJWT, natsSeed)

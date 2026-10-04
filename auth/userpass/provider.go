@@ -28,11 +28,11 @@ func (r *configGetter) GetBackendOption() nats.Option {
 	}
 	natsUser := creds.Username
 	if natsUser == "" {
-		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].USERNAME")
+		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].username")
 	}
 	natsPw := creds.Password
 	if natsPw == "" {
-		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].PASSWORD")
+		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].password")
 	}
 	authOpt := nats.UserInfo(natsUser, natsPw)
 	return authOpt
@@ -57,12 +57,12 @@ func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.Con
 
 	natsUser := creds.Username
 	if natsUser == "" {
-		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].USERNAME", clientId)
+		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].username", clientId)
 	}
 
 	natsPw := creds.Password
 	if natsPw == "" {
-		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].PASSWORD", clientId)
+		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].password", clientId)
 	}
 	return auth.ConnectionConfig{
 		AuthType: AuthType,

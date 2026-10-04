@@ -28,11 +28,11 @@ func (r *configGetter) GetBackendOption() nats.Option {
 	}
 	jwt := creds.JWT
 	if jwt == "" {
-		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].JWT", auth.DefaultBeClientId))
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].jwt", auth.DefaultBeClientId))
 	}
 	seed := creds.Seed
 	if seed == "" {
-		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].SEED", auth.DefaultBeClientId))
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].seed", auth.DefaultBeClientId))
 	}
 
 	authOpt := nats.UserJWTAndSeed(jwt, seed)
@@ -51,7 +51,7 @@ func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.Con
 
 	jwt := creds.JWT
 	if jwt == "" {
-		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NATS_CLIENTS[%s].JWT", clientId)
+		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NATS_CLIENTS[%s].jwt", clientId)
 	}
 
 	return auth.ConnectionConfig{
