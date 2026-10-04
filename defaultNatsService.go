@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -90,7 +91,7 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 	if err != nil {
 		panic("can't get natsSettings from conf, " + err.Error())
 	}
-	natsUrl := settings.Url
+	natsUrl := strings.Join(settings.BeUrls, ",")
 	if natsUrl == "" {
 		panic("natsSettings url is empty")
 	}

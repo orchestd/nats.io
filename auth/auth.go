@@ -6,7 +6,12 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-type FrontendConnectionConfig struct {
+const (
+	DefaultBeClientId = "be"
+	DefaultFeClientId = "fe"
+)
+
+type ConnectionConfig struct {
 	AuthType    string      `json:"authType"`
 	Servers     []string    `json:"servers"`
 	Credentials interface{} `json:"credentials"`
@@ -14,19 +19,14 @@ type FrontendConnectionConfig struct {
 
 type ConfigGetter interface {
 	GetBackendOption() nats.Option
-	GetFrontendConfig(ctx context.Context) (FrontendConnectionConfig, error)
+	GetConfig(ctx context.Context, clientId string) (ConnectionConfig, error)
 }
 
 // NatsSettingsI structure is identical to struct NatsSettings
 type NatsSettingsI interface{}
 
 type NatsSettings struct {
-	AuthType string                    `json:"authType"`
-	Url      string                    `json:"url"`
-	Frontend NatsFrontendConfiguration `json:"frontend"`
-}
-
-type NatsFrontendConfiguration struct {
-	Url         string      `json:"url"`
-	Credentials interface{} `json:"credentials"`
+	AuthType string   `json:"authType"`
+	BeUrls   []string `json:"beUrls"`
+	FeUrls   []string `json:"feUrls"`
 }

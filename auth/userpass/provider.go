@@ -2,7 +2,6 @@ package userpass
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/nats-io/nats.go"
@@ -19,51 +18,55 @@ type configGetter struct {
 }
 
 func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config, settings auth.NatsSettings) auth.ConfigGetter {
-
 	return &configGetter{credentials: credentials, settings: settings}
 }
 
 func (r *configGetter) GetBackendOption() nats.Option {
-	natsUser := r.credentials.GetCredentials().NatsUser
-	if natsUser == "" {
-		panic("can't get credentials by key NatsUser")
+	creds, err := r.credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+	if err != nil {
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
 	}
-	natsPw := r.credentials.GetCredentials().NatsPw
+	natsUser := creds.Username
+	if natsUser == "" {
+		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].USERNAME")
+	}
+	natsPw := creds.Password
 	if natsPw == "" {
-		panic("can't get credentials by key NatsPw")
+		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].PASSWORD")
 	}
 	authOpt := nats.UserInfo(natsUser, natsPw)
 	return authOpt
 }
 
-func (r *configGetter) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
-	if r.settings.Frontend.Url == "" {
-		return auth.FrontendConnectionConfig{}, nil
+func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.ConnectionConfig, error) {
+	creds, err := r.credentials.GetCredentials().GetNatsCredentials(clientId)
+	if err != nil {
+		return auth.ConnectionConfig{}, fmt.Errorf("nats credentials not found for NatsClients[%s], err: %w", clientId, err)
 	}
 
-	var creds Credentials
-	credsBytes, err := json.Marshal(r.settings.Frontend.Credentials)
-	if err != nil {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds failed to marshal: %w", err)
+	var urls []string
+	if creds.Type == "fe" {
+		urls = r.settings.FeUrls
+	} else {
+		urls = r.settings.BeUrls
 	}
 
-	err = json.Unmarshal(credsBytes, &creds)
-	if err != nil {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds failed to unmarshal: %w", err)
+	if len(urls) == 0 {
+		return auth.ConnectionConfig{}, nil
 	}
 
 	natsUser := creds.Username
 	if natsUser == "" {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds.username is empty")
+		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].USERNAME", clientId)
 	}
 
 	natsPw := creds.Password
 	if natsPw == "" {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds.password is empty")
+		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].PASSWORD", clientId)
 	}
-	return auth.FrontendConnectionConfig{
+	return auth.ConnectionConfig{
 		AuthType: AuthType,
-		Servers:  []string{r.settings.Frontend.Url},
+		Servers:  urls,
 		Credentials: Credentials{
 			Username: natsUser,
 			Password: natsPw,
