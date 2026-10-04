@@ -2,6 +2,10 @@ module github.com/orchestd/nats.io
 
 go 1.19
 
+replace (
+	github.com/orchestd/configurations v0.14.0 => ../configurations
+)
+
 require (
 	github.com/go-masonry/mortar v0.1.3
 	github.com/nats-io/nats.go v1.31.0

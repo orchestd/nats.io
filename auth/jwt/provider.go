@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/nats-io/nats.go"
@@ -23,42 +22,41 @@ func NewConfigGetter(credentials credentials.CredentialsGetter, config configura
 }
 
 func (r *configGetter) GetBackendOption() nats.Option {
-	natsJwt := r.credentials.GetCredentials().NatsJWT
-	if natsJwt == "" {
-		panic("can't get credentials by key NatsJWT")
+	creds, err := r.credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+	if err != nil {
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
 	}
-	natsSeed := r.credentials.GetCredentials().NatsSeed
-	if natsSeed == "" {
-		panic("can't get credentials by key NatsSeed")
+	jwt := creds.JWT
+	if jwt == "" {
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].jwt", auth.DefaultBeClientId))
 	}
-	authOpt := nats.UserJWTAndSeed(natsJwt, natsSeed)
+	seed := creds.Seed
+	if seed == "" {
+		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].seed", auth.DefaultBeClientId))
+	}
+
+	authOpt := nats.UserJWTAndSeed(jwt, seed)
 	return authOpt
 }
 
-func (r *configGetter) GetFrontendConfig(ctx context.Context) (auth.FrontendConnectionConfig, error) {
-	if r.settings.Frontend.Url == "" {
-		return auth.FrontendConnectionConfig{}, nil
+func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.ConnectionConfig, error) {
+	if len(r.settings.FeUrls) == 0 {
+		return auth.ConnectionConfig{}, nil
 	}
 
-	var creds Credentials
-	credsBytes, err := json.Marshal(r.settings.Frontend.Creds)
+	creds, err := r.credentials.GetCredentials().GetNatsCredentials(clientId)
 	if err != nil {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds failed to marshal: %w", err)
-	}
-
-	err = json.Unmarshal(credsBytes, &creds)
-	if err != nil {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.creds failed to unmarshal: %w", err)
+		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NATS_CLIENTS[%s], err: %w", clientId, err)
 	}
 
 	jwt := creds.JWT
 	if jwt == "" {
-		return auth.FrontendConnectionConfig{}, fmt.Errorf("config: natsSettings.frontend.jwt is empty")
+		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NATS_CLIENTS[%s].jwt", clientId)
 	}
 
-	return auth.FrontendConnectionConfig{
+	return auth.ConnectionConfig{
 		AuthType: AuthType,
-		Servers:  []string{r.settings.Frontend.Url},
+		Servers:  r.settings.FeUrls,
 		Credentials: Credentials{
 			JWT: jwt,
 		},
