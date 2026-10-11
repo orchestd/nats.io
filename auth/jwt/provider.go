@@ -2,12 +2,12 @@ package jwt
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/nats-io/nats.go"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/nats.io/auth"
+	"github.com/orchestd/nats.io/auth/helpers"
 )
 
 const AuthType = "jwt"
@@ -22,17 +22,18 @@ func NewConfigGetter(credentials credentials.CredentialsGetter, config configura
 }
 
 func (r *configGetter) GetBackendOption() nats.Option {
-	creds, err := r.credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+	_, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.settings, auth.DefaultBeClientId)
 	if err != nil {
-		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
+		panic(err)
 	}
+
 	jwt := creds.JWT
 	if jwt == "" {
-		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].jwt", auth.DefaultBeClientId))
+		panic(helpers.GetErrorMessage(auth.DefaultBeClientId, "jwt"))
 	}
 	seed := creds.Seed
 	if seed == "" {
-		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s].seed", auth.DefaultBeClientId))
+		panic(helpers.GetErrorMessage(auth.DefaultBeClientId, "seed"))
 	}
 
 	authOpt := nats.UserJWTAndSeed(jwt, seed)
@@ -40,23 +41,23 @@ func (r *configGetter) GetBackendOption() nats.Option {
 }
 
 func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.ConnectionConfig, error) {
-	if len(r.settings.FeUrls) == 0 {
-		return auth.ConnectionConfig{}, nil
+	urls, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.settings, clientId)
+	if err != nil {
+		return auth.ConnectionConfig{}, err
 	}
 
-	creds, err := r.credentials.GetCredentials().GetNatsCredentials(clientId)
-	if err != nil {
-		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NATS_CLIENTS[%s], err: %w", clientId, err)
+	if len(urls) == 0 {
+		return auth.ConnectionConfig{}, nil
 	}
 
 	jwt := creds.JWT
 	if jwt == "" {
-		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NATS_CLIENTS[%s].jwt", clientId)
+		return auth.ConnectionConfig{}, helpers.GetErrorMessage(clientId, "jwt")
 	}
 
 	return auth.ConnectionConfig{
 		AuthType: AuthType,
-		Servers:  r.settings.FeUrls,
+		Servers:  urls,
 		Credentials: Credentials{
 			JWT: jwt,
 		},

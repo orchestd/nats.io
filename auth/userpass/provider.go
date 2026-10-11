@@ -2,12 +2,11 @@ package userpass
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/nats-io/nats.go"
-	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/nats.io/auth"
+	"github.com/orchestd/nats.io/auth/helpers"
 )
 
 const AuthType = "userpass"
@@ -17,59 +16,53 @@ type configGetter struct {
 	settings    auth.NatsSettings
 }
 
-func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config, settings auth.NatsSettings) auth.ConfigGetter {
+func NewConfigGetter(credentials credentials.CredentialsGetter, settings auth.NatsSettings) auth.ConfigGetter {
 	return &configGetter{credentials: credentials, settings: settings}
 }
 
 func (r *configGetter) GetBackendOption() nats.Option {
-	creds, err := r.credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+	_, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.settings, auth.DefaultBeClientId)
 	if err != nil {
-		panic(fmt.Sprintf("nats credentials not found for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
+		panic(err)
 	}
-	natsUser := creds.Username
-	if natsUser == "" {
-		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].username")
+
+	username := creds.Username
+	if username == "" {
+		panic(helpers.GetErrorMessage(auth.DefaultBeClientId, "username"))
 	}
-	natsPw := creds.Password
-	if natsPw == "" {
-		panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].password")
+	password := creds.Password
+	if password == "" {
+		panic(helpers.GetErrorMessage(auth.DefaultBeClientId, "password"))
 	}
-	authOpt := nats.UserInfo(natsUser, natsPw)
+	authOpt := nats.UserInfo(username, password)
 	return authOpt
 }
 
 func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.ConnectionConfig, error) {
-	creds, err := r.credentials.GetCredentials().GetNatsCredentials(clientId)
+	urls, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.settings, clientId)
 	if err != nil {
-		return auth.ConnectionConfig{}, fmt.Errorf("nats credentials not found for NatsClients[%s], err: %w", clientId, err)
-	}
-
-	var urls []string
-	if creds.Type == "fe" {
-		urls = r.settings.FeUrls
-	} else {
-		urls = r.settings.BeUrls
+		return auth.ConnectionConfig{}, err
 	}
 
 	if len(urls) == 0 {
 		return auth.ConnectionConfig{}, nil
 	}
 
-	natsUser := creds.Username
-	if natsUser == "" {
-		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].username", clientId)
+	username := creds.Username
+	if username == "" {
+		return auth.ConnectionConfig{}, helpers.GetErrorMessage(clientId, "username")
 	}
 
-	natsPw := creds.Password
-	if natsPw == "" {
-		return auth.ConnectionConfig{}, fmt.Errorf("can't get credentials for NatsClients[%s].password", clientId)
+	password := creds.Password
+	if password == "" {
+		return auth.ConnectionConfig{}, helpers.GetErrorMessage(clientId, "password")
 	}
 	return auth.ConnectionConfig{
 		AuthType: AuthType,
 		Servers:  urls,
 		Credentials: Credentials{
-			Username: natsUser,
-			Password: natsPw,
+			Username: username,
+			Password: password,
 		},
 	}, nil
 }

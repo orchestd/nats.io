@@ -19,7 +19,7 @@ func NewConfigGetter(credentials credentials.CredentialsGetter, config configura
 
 	switch settings.AuthType {
 	case userpass.AuthType:
-		return userpass.NewConfigGetter(credentials, config, settings)
+		return userpass.NewConfigGetter(credentials, settings)
 	case jwt.AuthType:
 		return jwt.NewConfigGetter(credentials, config, settings)
 	default:
