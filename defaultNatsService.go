@@ -56,11 +56,11 @@ func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, l
 
 		natsUser := creds.Username
 		if natsUser == "" {
-			panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].usename")
+			panic(fmt.Sprintf("can't get credentials for NatsClients[%s].usename", auth.DefaultBeClientId))
 		}
 		natsPw := creds.Password
 		if natsPw == "" {
-			panic("can't get credentials for NatsClients[" + auth.DefaultBeClientId + "].password")
+			panic(fmt.Sprintf("can't get credentials for NatsClients[%s].password", auth.DefaultBeClientId))
 		}
 		authOpt := nats.UserInfo(natsUser, natsPw)
 		return authOpt
