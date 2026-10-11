@@ -49,7 +49,7 @@ func NewNatsServiceWithAuthProvider(lc fx.Lifecycle, config configuration.Config
 
 func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, logger log.Logger, credentials credentials.CredentialsGetter) NatsService {
 	return getDefaultService(lc, config, logger, func(serviceName string) nats.Option {
-		creds, err := credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+		creds, err := credentials.GetCredentials().GetServiceNatsCredentials(serviceName, auth.DefaultBeClientId)
 		if err != nil {
 			panic(fmt.Sprintf("can't get credentials for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
 		}
@@ -68,7 +68,12 @@ func NewNatsServiceWithBasicAuth(lc fx.Lifecycle, config configuration.Config, l
 }
 
 func NewNatsServiceWithJWTAuth(lc fx.Lifecycle, config configuration.Config, credentials credentials.CredentialsGetter, logger log.Logger) NatsService {
-	creds, err := credentials.GetCredentials().GetNatsCredentials(auth.DefaultBeClientId)
+	serviceName, err := config.GetServiceName()
+	if err != nil {
+		panic("can't get serviceName: " + err.Error())
+	}
+
+	creds, err := credentials.GetCredentials().GetServiceNatsCredentials(serviceName, auth.DefaultBeClientId)
 	if err != nil {
 		panic(fmt.Sprintf("can't get credentials for NatsClients[%s], err: %w", auth.DefaultBeClientId, err))
 	}
