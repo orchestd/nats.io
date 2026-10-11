@@ -14,15 +14,16 @@ const AuthType = "jwt"
 
 type configGetter struct {
 	credentials credentials.CredentialsGetter
+	config      configuration.Config
 	settings    auth.NatsSettings
 }
 
 func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config, settings auth.NatsSettings) auth.ConfigGetter {
-	return &configGetter{credentials: credentials, settings: settings}
+	return &configGetter{credentials: credentials, config: config, settings: settings}
 }
 
 func (r *configGetter) GetBackendOption() nats.Option {
-	_, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.settings, auth.DefaultBeClientId)
+	_, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.config, r.settings, auth.DefaultBeClientId)
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +42,7 @@ func (r *configGetter) GetBackendOption() nats.Option {
 }
 
 func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.ConnectionConfig, error) {
-	urls, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.settings, clientId)
+	urls, creds, err := helpers.GetUrlsAndCreds(r.credentials, r.config, r.settings, clientId)
 	if err != nil {
 		return auth.ConnectionConfig{}, err
 	}

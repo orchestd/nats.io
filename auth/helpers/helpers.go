@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	credentialtypes "github.com/orchestd/configurations/credentials"
+	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	credentialsgetters "github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/nats.io/auth"
 )
@@ -16,10 +17,14 @@ func GetErrorMessage(clientId, property string) error {
 	return fmt.Errorf(msg)
 }
 
-func GetUrlsAndCreds(credentials credentialsgetters.CredentialsGetter, settings auth.NatsSettings, clientId string) ([]string, credentialtypes.NatsCredentials, error) {
+func GetUrlsAndCreds(credentials credentialsgetters.CredentialsGetter, config configuration.Config, settings auth.NatsSettings, clientId string) ([]string, credentialtypes.NatsCredentials, error) {
 	var urls []string
 
-	creds, err := credentials.GetCredentials().GetNatsCredentials(clientId)
+	serviceName, err := config.GetServiceName()
+	if err != nil {
+		return urls, credentialtypes.NatsCredentials{}, err
+	}
+	creds, err := credentials.GetCredentials().GetServiceNatsCredentials(serviceName, clientId)
 	if err != nil {
 		return urls, creds, fmt.Errorf("%w; %w", GetErrorMessage(clientId, ""), err)
 	}
