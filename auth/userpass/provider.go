@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/nats-io/nats.go"
+	credentialtypes "github.com/orchestd/configurations/credentials"
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
 	"github.com/orchestd/nats.io/auth"
@@ -28,15 +29,12 @@ func (r *configGetter) GetBackendOption() nats.Option {
 		panic(err)
 	}
 
-	username := creds.Username
-	if username == "" {
-		panic(helpers.GetErrorMessage(auth.DefaultBeClientId, "username"))
+	err = validateUserPassword(auth.DefaultBeClientId, creds)
+	if err != nil {
+		panic(err)
 	}
-	password := creds.Password
-	if password == "" {
-		panic(helpers.GetErrorMessage(auth.DefaultBeClientId, "password"))
-	}
-	authOpt := nats.UserInfo(username, password)
+
+	authOpt := nats.UserInfo(creds.Username, creds.Password)
 	return authOpt
 }
 
@@ -50,21 +48,17 @@ func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.Con
 		return auth.ConnectionConfig{}, nil
 	}
 
-	username := creds.Username
-	if username == "" {
-		return auth.ConnectionConfig{}, helpers.GetErrorMessage(clientId, "username")
+	err = validateUserPassword(clientId, creds)
+	if err != nil {
+		return auth.ConnectionConfig{}, err
 	}
 
-	password := creds.Password
-	if password == "" {
-		return auth.ConnectionConfig{}, helpers.GetErrorMessage(clientId, "password")
-	}
 	return auth.ConnectionConfig{
 		AuthType: AuthType,
 		Servers:  urls,
 		Credentials: Credentials{
-			Username: username,
-			Password: password,
+			Username: creds.Username,
+			Password: creds.Password,
 		},
 	}, nil
 }
@@ -72,4 +66,15 @@ func (r *configGetter) GetConfig(ctx context.Context, clientId string) (auth.Con
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+func validateUserPassword(clientId string, creds credentialtypes.NatsCredentials) error {
+	if creds.Username == "" {
+		return helpers.GetErrorMessage(clientId, "username")
+	}
+	if creds.Password == "" {
+		return helpers.GetErrorMessage(clientId, "password")
+	}
+
+	return nil
 }
