@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -102,9 +103,14 @@ func getDefaultService(lc fx.Lifecycle, config configuration.Config, logger log.
 		panic("can't get serviceName: " + err.Error())
 	}
 	settings := auth.NatsSettings{}
-	err = config.Get("natsSettings").Unmarshal(&settings)
+	envsettings := os.Getenv("natsSettings")
+	if envsettings == "" {
+		panic("can't get natsSettings from env")
+	}
+
+	err = json.Unmarshal([]byte(envsettings), &settings)
 	if err != nil {
-		panic("can't get natsSettings from conf, " + err.Error())
+		panic("can't unmarshal natsSettings " + err.Error())
 	}
 	natsUrl := strings.Join(settings.BeUrls, ",")
 	if natsUrl == "" {

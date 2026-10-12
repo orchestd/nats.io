@@ -1,7 +1,9 @@
 package dynamicauth
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/orchestd/dependencybundler/interfaces/configuration"
 	"github.com/orchestd/dependencybundler/interfaces/credentials"
@@ -12,9 +14,14 @@ import (
 
 func NewConfigGetter(credentials credentials.CredentialsGetter, config configuration.Config) auth.ConfigGetter {
 	settings := auth.NatsSettings{}
-	err := config.Get("natsSettings").Unmarshal(&settings)
+	envsettings := os.Getenv("natsSettings")
+	if envsettings == "" {
+		panic("can't get natsSettings from env")
+	}
+
+	err := json.Unmarshal([]byte(envsettings), &settings)
 	if err != nil {
-		panic("can't get natsSettings from conf")
+		panic("can't unmarshal natsSettings " + err.Error())
 	}
 
 	switch settings.AuthType {
