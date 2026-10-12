@@ -14,7 +14,7 @@ func NewConfigGetter(credentials credentials.CredentialsGetter, config configura
 	settings := auth.NatsSettings{}
 	err := config.Get("natsSettings").Unmarshal(&settings)
 	if err != nil {
-		panic("can't get settings by key natsSettings. must be included in conf or env, " + err.Error())
+		panic("can't get natsSettings from conf. object must be included in conf or env. " + err.Error())
 	}
 
 	switch settings.AuthType {
